@@ -37,6 +37,9 @@ def create_agent() -> Agent:
       * A deterministic identity derived from ``AGENT_SEED_PHRASE``.
       * The Agent Chat Protocol (``chat_protocol``) included.
       * The configured agent port and network.
+      * Mailbox mode (``AGENT_MAILBOX``, default ``true``) so the agent can
+        connect to Agentverse via a secure mailbox channel without requiring
+        a publicly reachable HTTP endpoint.
 
     Raises:
         RuntimeError: If ``AGENT_SEED_PHRASE`` is not set.
@@ -48,6 +51,7 @@ def create_agent() -> Agent:
         seed=settings.agent_seed_phrase,
         port=settings.agent_port,
         network=settings.agent_network,  # type: ignore[arg-type]
+        mailbox=settings.agent_mailbox,
         publish_agent_details=False,
         store_message_history=False,
         handle_messages_concurrently=False,

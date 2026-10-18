@@ -43,14 +43,20 @@ project. No files are copied or modified from that repository.
   identity from `AGENT_SEED_PHRASE`, includes the chat protocol, and
   requires `AGENT_SEED_PHRASE` at construction time.
 
-### Planned Fetch.ai integration
+### Mailbox-enabled Fetch.ai agent
+
+The `uagents` Agent runs in mailbox mode (`mailbox=True`) and connects to
+Agentverse via a secure mailbox channel. This avoids the need for a
+publicly reachable HTTP endpoint. The agent must remain running locally to
+process live messages.
 
 1. Set `AGENT_SEED_PHRASE` in `.env` and call `create_agent()` to obtain
    the `Agent` instance.
-2. Run `agent.run()` to start the agent runtime (owns its own ASGI
-   server on the configured port, listening for envelopes at `/submit`).
+2. Run `agent.run()` (or `run_agent.py`) to start the agent runtime.
+   The agent connects outbound to Agentverse's mailbox service.
 3. Register on Agentverse (`AGENTVERSE_API_KEY`) and connect to ASI:One
-   when ready for production.
+   when ready for production. Registration is a separate workflow from
+   running the mailbox-enabled agent locally.
 
 Note: the "Agent Chat Protocol" (uAgents/Fetch.ai) is distinct from the
 unrelated "Agent Client Protocol" (agentcommunicationprotocol.dev).
@@ -90,23 +96,19 @@ The service will be available at `http://127.0.0.1:8000`.
 
 ## Running the Fetch.ai agent (requires `AGENT_SEED_PHRASE`)
 
-The `uagents` Agent runs its own ASGI server and is **not** part of the
-FastAPI app. Set `AGENT_SEED_PHRASE` in `.env`, then run:
+The `uagents` Agent runs in **mailbox mode** (`mailbox=True`) and connects to
+Agentverse via a secure mailbox channel. It is **not** part of the FastAPI
+app and runs on its own port. No publicly reachable HTTP endpoint is needed.
+
+Set `AGENT_SEED_PHRASE` in `.env`, then run the dedicated entry point:
 
 ```powershell
-# Example: create and run the agent (requires AGENT_SEED_PHRASE)
-.\.venv\Scripts\python.exe -c "
-import os
-from dotenv import load_dotenv
-load_dotenv()
-from app.agent import create_agent
-agent = create_agent()
-agent.run()
-"
+# Example: create and run the mailbox-enabled agent (requires AGENT_SEED_PHRASE)
+.\.venv\Scripts\python.exe run_agent.py
 ```
 
-The agent listens for ACP envelopes at `http://127.0.0.1:8001/submit`
-(default port, configurable via `AGENT_PORT`).
+The agent runs on port `AGENT_PORT` (default `8001`) and connects outbound
+to Agentverse's mailbox service at `https://Agentverse.ai`.
 
 When the agent receives a `ChatMessage` from another agent or ASI:One:
 1. It extracts the user text and identifies the conversation from the
@@ -153,6 +155,7 @@ external services, or an internet connection.
 | `AGENT_SEED_PHRASE` | `<seed phrase>` | No | **Yes** |
 | `AGENT_PORT` | `8001` | No | No (default 8001) |
 | `AGENT_NETWORK` | `mainnet` | No | No (default mainnet) |
+| `AGENT_MAILBOX` | `true` | No | No (default true; enables mailbox mode) |
 | `AGENTVERSE_API_KEY` | `<api key>` | No | No (future) |
 
 See `.env.example` for a template. Copy it to `.env` locally; `.env` is
@@ -162,6 +165,7 @@ excluded from Git by `.gitignore`.
 
 - Sessions are stored in memory only and are lost on service restart.
 - No Fetch.ai agent is registered on Agentverse.
+- The agent runs in mailbox mode but is not yet registered on Agentverse.
 - The agent runtime is not started by default; `create_agent()` requires
   `AGENT_SEED_PHRASE`.
 - The GhoomAI client is implemented but not yet wired to FastAPI routes.

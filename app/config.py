@@ -32,6 +32,11 @@ class Settings:
         self.agent_seed_phrase: Optional[str] = os.getenv("AGENT_SEED_PHRASE")
         self.agent_port: int = int(os.getenv("AGENT_PORT", "8001"))
         self.agent_network: str = os.getenv("AGENT_NETWORK", "mainnet")
+        self.agent_mailbox: bool = os.getenv("AGENT_MAILBOX", "true").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
 
         # Fetch.ai Agentverse configuration (needed for registration only).
         self.agentverse_api_key: Optional[str] = os.getenv("AGENTVERSE_API_KEY")
