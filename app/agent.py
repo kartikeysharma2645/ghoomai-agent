@@ -1,48 +1,73 @@
-"""Integration boundary for the upcoming Fetch.ai Agent Chat Protocol (ACP) implementation.
+"""Fetch.ai Agent integration for the GhoomAI Agent service.
 
-This module is a placeholder that records the documented Fetch.ai SDK
-imports and integration approach. No agent registration, ASI:One
-discoverability, or message handling is implemented at this stage.
+This module constructs a ``uagents`` ``Agent`` with the Agent Chat
+Protocol (``chat_protocol`` from :mod:`app.chat_protocol``) included.
 
-Official documentation sources reviewed:
-  * uAgents Framework installation: https://uagents.fetch.ai/docs/getting-started/install
-  * Fetch.ai Innovation Lab - Chat Protocol example:
-    https://innovationlab.fetch.ai/resources/docs/examples/chat-protocol/asi-compatible-uagents
+The agent requires ``AGENT_SEED_PHRASE`` to establish a deterministic
+identity. Without it, :func:`create_agent` raises a clear
+:class:`RuntimeError`. The health endpoint (``GET /status``) does not
+require the agent or any credentials.
+
+No agent registration, ASI:One discoverability, or deployment is
+performed here. Call :func:`create_agent` to obtain an ``Agent``
+instance; call ``agent.run()`` only when you are ready to run the agent
+runtime locally.
+
+Official documentation sources:
+  * uAgents Framework: https://uagents.fetch.ai/docs/getting-started/install
   * uAgents Core (PyPI): https://pypi.org/pypi/uagents-core
-
-Documented imports (verified against uagents-core 0.4.12):
-
-    from uagents_core.contrib.protocols.chat import (
-        ChatAcknowledgement,
-        ChatMessage,
-        TextContent,
-        chat_protocol_spec,
-    )
-
-Verified behavior:
-    chat_protocol_spec.name    == "AgentChatProtocol"
-    chat_protocol_spec.version == "0.3.0"
-
-Distinction from the unrelated Agent Client Protocol (ACP):
-    The Fetch.ai Agent Chat Protocol is a string-based chat protocol used
-    by uAgents for agent-to-agent communication (expected format for
-    ASI:One). The Agent Client Protocol (agentcommunicationprotocol.dev)
-    is a separate, unrelated specification.
-
-Planned integration steps (not implemented yet):
-    1. Install/import uagents-core (done in requirements.txt).
-    2. Define a uAgent with a seed phrase from configuration.
-    3. Include the chat protocol (chat_protocol_spec) in the agent.
-    4. Register message handlers for ChatMessage / ChatAcknowledgement.
-    5. Optionally register the agent on Agentverse and connect to ASI:One.
-
-No speculative protocol classes or method signatures are defined here.
 """
 
+from __future__ import annotations
 
-# Placeholder: the Fetch.ai agent instance will be constructed here once
-# registration is implemented. Until then, this remains None to make the
-# absence of an agent explicit rather than fabricating a mock.
+import logging
+
+from uagents import Agent
+
+from app.chat_protocol import chat_protocol
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+def create_agent() -> Agent:
+    """Create and configure the GhoomAI Fetch.ai agent.
+
+    The agent is constructed with:
+      * A deterministic identity derived from ``AGENT_SEED_PHRASE``.
+      * The Agent Chat Protocol (``chat_protocol``) included.
+      * The configured agent port and network.
+
+    Raises:
+        RuntimeError: If ``AGENT_SEED_PHRASE`` is not set.
+    """
+    settings.require_agent_credentials()
+
+    agent = Agent(
+        name="ghoomai-agent",
+        seed=settings.agent_seed_phrase,
+        port=settings.agent_port,
+        network=settings.agent_network,  # type: ignore[arg-type]
+        publish_agent_details=False,
+        store_message_history=False,
+        handle_messages_concurrently=False,
+    )
+
+    agent.include(chat_protocol)
+
+    logger.info(
+        "GhoomAI agent created (address=%s, port=%d, network=%s)",
+        agent.address,
+        settings.agent_port,
+        settings.agent_network,
+    )
+
+    return agent
+
+
+# Placeholder: no agent is constructed at import time. The agent must be
+# created explicitly via :func:`create_agent`, which requires
+# ``AGENT_SEED_PHRASE``. This keeps imports and tests credential-free.
 AGENT = None
 
-__all__ = ["AGENT"]
+__all__ = ["AGENT", "create_agent"]

@@ -1,8 +1,10 @@
 # GhoomAI Agent - pinned production dependencies
-# Python 3.10+ required (uagents-core requires >=3.10, <4.0)
+# Python 3.10+ required (uagents-core requires >=3.10, <4.0;
+# uagents requires >=3.10, <4.0 and is compatible with Python 3.13)
 
 fastapi==0.146.0
 uvicorn==0.35.0
+uagents==0.26.1
 uagents-core==0.4.12
 httpx==0.28.1
 python-dotenv==1.1.0

@@ -11,10 +11,10 @@ project. No files are copied or modified from that repository.
 
 | Component | Status |
 |-----------|--------|
-| FastAPI service with `GET /status` health endpoint | Implemented |
-| GhoomAI HTTP client (`POST /api/agent`) | Implemented (not yet wired to routes) |
-| In-memory session store | Implemented |
-| Fetch.ai Agent Chat Protocol integration | Planned (placeholder only) |
+| FastAPI service with `GET /status` health endpoint | Implemented and tested |
+| GhoomAI HTTP client (`POST /api/agent`) | Implemented and tested (not yet wired to FastAPI routes) |
+| In-memory session store | Implemented and tested |
+| Fetch.ai Agent Chat Protocol integration | Implemented and tested (agent not yet registered) |
 | Agent registration on Agentverse | Not implemented |
 | ASI:One discoverability / message handling | Not implemented |
 
@@ -23,26 +23,34 @@ project. No files are copied or modified from that repository.
 - `app/main.py` — FastAPI application exposing `GET /status`.
 - `app/config.py` — Configuration loaded from environment variables via
   `python-dotenv`. Defaults `GHOOMAI_API_BASE_URL` to
-  `https://ghoomai.netlify.app`.
+  `https://ghoomai.netlify.app`. Includes agent port, network, and
+  credential validation.
 - `app/ghoomai_client.py` — Async `httpx` client that calls the GhoomAI
   `/api/agent` endpoint with `{ session, message }`, validates the
   response, and returns updated session state.
 - `app/session_store.py` — Thread-safe in-memory session store keyed by
   conversation ID. Sessions are lost when the service restarts.
-- `app/agent.py` — Documented integration boundary for the Fetch.ai
-  Agent Chat Protocol. Records the verified `uagents-core` imports
-  (`chat_protocol_spec` = `AgentChatProtocol 0.3.0`). No agent is
-  constructed or registered yet.
+- `app/chat_protocol.py` — Fetch.ai Agent Chat Protocol (ACP)
+  integration. Defines `ChatHandler` (receives `ChatMessage`, extracts
+  text, maps `ctx.session` to a GhoomAI conversation, calls
+  `GhoomAIClient`, persists the returned session, sends a
+  `ChatAcknowledgement` to acknowledge the incoming message, and sends
+  the actual GhoomAI response as a separate `ChatMessage` with
+  `TextContent`) and builds a `uagents` `Protocol` from the verified
+  `chat_protocol_spec` (AgentChatProtocol 0.3.0). The acknowledgement
+  is never confused with the response content.
+- `app/agent.py` — Constructs a `uagents` `Agent` with a deterministic
+  identity from `AGENT_SEED_PHRASE`, includes the chat protocol, and
+  requires `AGENT_SEED_PHRASE` at construction time.
 
 ### Planned Fetch.ai integration
 
-1. Construct a uAgent using a seed phrase from `AGENT_SEED_PHRASE`.
-2. Include the `chat_protocol_spec` from
-   `uagents_core.contrib.protocols.chat` (verified:
-   `AgentChatProtocol 0.3.0`).
-3. Register handlers for `ChatMessage` / `ChatAcknowledgement`.
-4. Register on Agentverse (`AGENTVERSE_API_KEY`) and connect to ASI:One.
-5. Wire the GhoomAI client into agent message handlers.
+1. Set `AGENT_SEED_PHRASE` in `.env` and call `create_agent()` to obtain
+   the `Agent` instance.
+2. Run `agent.run()` to start the agent runtime (owns its own ASGI
+   server on the configured port, listening for envelopes at `/submit`).
+3. Register on Agentverse (`AGENTVERSE_API_KEY`) and connect to ASI:One
+   when ready for production.
 
 Note: the "Agent Chat Protocol" (uAgents/Fetch.ai) is distinct from the
 unrelated "Agent Client Protocol" (agentcommunicationprotocol.dev).
@@ -72,13 +80,45 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-## Running the FastAPI service
+## Running the FastAPI service (health endpoint only)
 
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
 The service will be available at `http://127.0.0.1:8000`.
+
+## Running the Fetch.ai agent (requires `AGENT_SEED_PHRASE`)
+
+The `uagents` Agent runs its own ASGI server and is **not** part of the
+FastAPI app. Set `AGENT_SEED_PHRASE` in `.env`, then run:
+
+```powershell
+# Example: create and run the agent (requires AGENT_SEED_PHRASE)
+.\.venv\Scripts\python.exe -c "
+import os
+from dotenv import load_dotenv
+load_dotenv()
+from app.agent import create_agent
+agent = create_agent()
+agent.run()
+"
+```
+
+The agent listens for ACP envelopes at `http://127.0.0.1:8001/submit`
+(default port, configurable via `AGENT_PORT`).
+
+When the agent receives a `ChatMessage` from another agent or ASI:One:
+1. It extracts the user text and identifies the conversation from the
+   envelope session UUID (`ctx.session`).
+2. It calls the GhoomAI backend at `POST /api/agent` with the message
+   and current session state.
+3. It persists the updated session returned by GhoomAI.
+4. It sends a `ChatAcknowledgement` to acknowledge the incoming message.
+5. It sends the actual GhoomAI response as a separate `ChatMessage`
+   containing `TextContent` back to the originating agent.
+
+Do not register, deploy, or claim ASI:One discoverability in this phase.
 
 ## Testing the `/status` endpoint
 
@@ -106,12 +146,14 @@ external services, or an internet connection.
 
 ## Environment variables
 
-| Variable | Example | Required for health? |
-|----------|---------|----------------------|
-| `GHOOMAI_API_BASE_URL` | `https://ghoomai.netlify.app` | No |
-| `GHOOMAI_API_TIMEOUT` | `30.0` | No |
-| `AGENT_SEED_PHRASE` | `<seed phrase>` | No (future) |
-| `AGENTVERSE_API_KEY` | `<api key>` | No (future) |
+| Variable | Example | Required for health? | Required for agent? |
+|----------|---------|----------------------|---------------------|
+| `GHOOMAI_API_BASE_URL` | `https://ghoomai.netlify.app` | No | No |
+| `GHOOMAI_API_TIMEOUT` | `30.0` | No | No |
+| `AGENT_SEED_PHRASE` | `<seed phrase>` | No | **Yes** |
+| `AGENT_PORT` | `8001` | No | No (default 8001) |
+| `AGENT_NETWORK` | `mainnet` | No | No (default mainnet) |
+| `AGENTVERSE_API_KEY` | `<api key>` | No | No (future) |
 
 See `.env.example` for a template. Copy it to `.env` locally; `.env` is
 excluded from Git by `.gitignore`.
@@ -119,9 +161,11 @@ excluded from Git by `.gitignore`.
 ## Current limitations
 
 - Sessions are stored in memory only and are lost on service restart.
-- No Fetch.ai agent is registered yet; `/status` is the only endpoint.
+- No Fetch.ai agent is registered on Agentverse.
+- The agent runtime is not started by default; `create_agent()` requires
+  `AGENT_SEED_PHRASE`.
 - The GhoomAI client is implemented but not yet wired to FastAPI routes.
-- No agent registration, ACP message handling, or ASI:One discovery.
+- No agent registration, production deployment, or ASI:One discovery.
 
 ## Security
 
