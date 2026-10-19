@@ -37,10 +37,15 @@ project. No files are copied or modified from that repository.
 
 **Public repository:** https://github.com/kartikeysharma2645/ghoomai-agent
 
-**Agentverse profile / ASI:One shared chat URL:** Not yet available — the
-agent has not been registered on Agentverse. This placeholder will be
-updated once the agent is registered and a public ASI:One shared chat URL
-is available.
+**Agent profile:** https://agentverse.ai/agents/details/agent1qw05j08yy2f0f9lhat6ny73g48pu6jslkqt7nv8d3x9hq34ldu3tcf6xu3z
+
+**Agent address:** agent1qw05j08yy2f0f9lhat6ny73g48pu6jslkqt7nv8d3x9hq34ldu3tcf6xu3z
+
+**Agentverse dashboard:** Observed as Active and ASI Available.
+
+**ASI:One shared chat URL:** Not yet obtained — a real multi-turn ASI:One
+conversation has been tested successfully, but the public shareable chat
+URL has not yet been retrieved.
 
 ## Architecture and current status
 
@@ -49,9 +54,9 @@ is available.
 | FastAPI service with `GET /status` health endpoint | Implemented and tested |
 | GhoomAI HTTP client (`POST /api/agent`) | Implemented and tested (not yet wired to FastAPI routes) |
 | In-memory session store | Implemented and tested |
-| Fetch.ai Agent Chat Protocol integration | Implemented in code (ACP message handling + mailbox mode; agent not yet registered on Agentverse) |
-| Agent registration on Agentverse | Observed as Active / ASI Available; public profile URL pending verification |
-| ASI:One discoverability / message handling | Message handling implemented in code; public shared-chat URL pending verification |
+| Fetch.ai Agent Chat Protocol integration | Implemented in code (ACP message handling + mailbox mode); registered on Agentverse as Active / ASI Available |
+| Agent registration on Agentverse | Registered — https://agentverse.ai/agents/details/agent1qw05j08yy2f0f9lhat6ny73g48pu6jslkqt7nv8d3x9hq34ldu3tcf6xu3z |
+| ASI:One discoverability / message handling | Multi-turn conversation tested successfully via ASI:One; public shared-chat URL pending verification |
 
 ### Current implementation
 
@@ -135,6 +140,12 @@ The `uagents` Agent runs in **mailbox mode** (`mailbox=True`) and connects to
 Agentverse via a secure mailbox channel. It is **not** part of the FastAPI
 app and runs on its own port. No publicly reachable HTTP endpoint is needed.
 
+The agent is already registered on Agentverse (observed as Active / ASI Available)
+at profile:
+https://agentverse.ai/agents/details/agent1qw05j08yy2f0f9lhat6ny73g48pu6jslkqt7nv8d3x9hq34ldu3tcf6xu3z
+
+Agent address: agent1qw05j08yy2f0f9lhat6ny73g48pu6jslkqt7nv8d3x9hq34ldu3tcf6xu3z
+
 Set `AGENT_SEED_PHRASE` in `.env`, then run the dedicated entry point:
 
 ```powershell
@@ -155,7 +166,7 @@ When the agent receives a `ChatMessage` from another agent or ASI:One:
 5. It sends the actual GhoomAI response as a separate `ChatMessage`
    containing `TextContent` back to the originating agent.
 
-Do not register, deploy, or claim ASI:One discoverability in this phase.
+Do not re-register the agent; it is already registered on Agentverse.
 
 ## Testing the `/status` endpoint
 
@@ -207,12 +218,9 @@ excluded from Git by `.gitignore`.
 ## Current limitations
 
 - Sessions are stored in memory only and are lost on service restart.
-- Agent registered on Agentverse (observed as Active / ASI Available); public profile URL pending verification.
-- The agent runs in mailbox mode but is not yet registered on Agentverse.
-- The agent runtime is not started by default; `create_agent()` requires
-  `AGENT_SEED_PHRASE`.
 - The GhoomAI client is implemented but not yet wired to FastAPI routes.
-- No agent registration, production deployment, or ASI:One discovery.
+- Two pre-existing test-isolation failures (in `tests/test_agent.py` and `tests/test_chat_protocol.py`) relate to reloading `app.config` after removing `AGENT_SEED_PHRASE`; they are unrelated to the GhoomAI client, session store, health endpoint, or ACP integration.
+- ASI:One public shared-chat URL has not yet been obtained.
 
 ## Security
 
