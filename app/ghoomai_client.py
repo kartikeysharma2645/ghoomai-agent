@@ -155,7 +155,12 @@ class GhoomAIClient:
                 "GhoomAI API returned an application error"
             )
 
-        updated_session = data.get("session")
+        inner_data = data.get("data")
+        if not isinstance(inner_data, dict):
+            raise GhoomAIResponseError(
+                "GhoomAI API response missing 'data' object"
+            )
+        updated_session = inner_data.get("session")
         if updated_session is None:
             raise GhoomAIResponseError(
                 "GhoomAI API response missing expected 'session' field"

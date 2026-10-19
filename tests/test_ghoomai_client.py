@@ -80,8 +80,14 @@ class FakeAsyncClient:
 def _make_success_response(session: Dict[str, Any]) -> FakeResponse:
     return FakeResponse(
         status_code=200,
-        json_data={"status": "success", "session": session},
-        text='{"status": "success", "session": ...}',
+        json_data={
+            "ok": True,
+            "data": {
+                "message": "Default response",
+                "session": session,
+            },
+        },
+        text='{"ok": true, "data": {"message": "...", "session": ...}}',
     )
 
 
@@ -115,7 +121,8 @@ def test_client_sends_expected_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     assert fake.last_json["message"] == "Plan a trip"
     assert fake.last_json["session"] == INITIAL_SESSION
     assert result["session"] == updated_session
-    assert result["data"]["status"] == "success"
+    assert result["data"]["ok"] is True
+    assert result["data"]["data"]["session"] == updated_session
 
 
 def test_client_uses_initial_session_when_none_provided(
@@ -136,6 +143,38 @@ def test_client_uses_initial_session_when_none_provided(
 
     assert fake.last_json is not None
     assert fake.last_json["session"] == INITIAL_SESSION
+
+
+def test_client_returns_nested_session_from_valid_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression test: a valid nested response returns its session correctly."""
+    updated_session = {
+        "sessionVersion": 1,
+        "transcript": [{"role": "user", "content": "Hello"}],
+        "tripStatus": "DRAFT",
+    }
+    fake = FakeAsyncClient(
+        response=_make_success_response(updated_session)
+    )
+
+    async def fake_get_client() -> FakeAsyncClient:
+        return fake
+
+    client = GhoomAIClient(base_url="https://ghoomai.netlify.app", timeout=10.0)
+    monkeypatch.setattr(client, "_get_client", fake_get_client)
+
+    import asyncio
+
+    result = asyncio.run(
+        client.send_message("Plan a trip", session=updated_session)
+    )
+
+    assert result["session"] == updated_session
+    assert result["data"]["ok"] is True
+    assert result["data"]["data"]["session"] == updated_session
+    assert isinstance(result["data"]["data"]["message"], str)
+    assert len(result["data"]["data"]["message"]) > 0
 
 
 def test_client_handles_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -222,6 +261,30 @@ def test_client_handles_missing_session_field(monkeypatch: pytest.MonkeyPatch) -
 
     async def fake_get_client() -> FakeAsyncClient:
         return async_client
+
+    client = GhoomAIClient(base_url="https://ghoomai.netlify.app", timeout=10.0)
+    monkeypatch.setattr(client, "_get_client", fake_get_client)
+
+    import asyncio
+
+    with pytest.raises(GhoomAIResponseError):
+        asyncio.run(client.send_message("Hello"))
+
+
+def test_client_handles_data_object_without_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 200 response with a 'data' object but no 'session' field should
+    raise GhoomAIResponseError."""
+    fake = FakeResponse(
+        status_code=200,
+        json_data={"ok": True, "data": {}},
+        text='{"ok": true, "data": {}}',
+    )
+    fake_async_client = FakeAsyncClient(response=fake)
+
+    async def fake_get_client() -> FakeAsyncClient:
+        return fake_async_client
 
     client = GhoomAIClient(base_url="https://ghoomai.netlify.app", timeout=10.0)
     monkeypatch.setattr(client, "_get_client", fake_get_client)
