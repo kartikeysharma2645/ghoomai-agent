@@ -1,11 +1,46 @@
 # GhoomAI Agent
 
+![tag:innovationlab](https://img.shields.io/badge/innovationlab-3D8BD3)
+![tag:hackathon](https://img.shields.io/badge/hackathon-5F43F1)
+
 A separate Python agent service that connects the existing GhoomAI
 travel-planning application to Fetch.ai Agentverse and ASI:One for
 Fetch-A-Thon 3.0.
 
+## Problem and Solution
+
+**Problem:** Planning a trip involves juggling multiple constraints —
+dates, budget, destination preferences, and itinerary changes. Most travel
+planning tools are static search engines that don't remember context across
+conversations or adapt to changing plans.
+
+**Solution:** GhoomAI Agent is a Fetch.ai uAgent that connects to the
+existing GhoomAI travel-planning backend
+(`https://ghoomai.netlify.app`) to provide multi-turn, context-aware travel
+planning. Users chat with the agent through ASI:One/Agentverse, and the
+agent:
+
+- Maintains a per-conversation session (`sessionVersion`, `transcript`,
+  `tripStatus`) across multiple messages.
+- Forwards user messages to the GhoomAI backend API (`POST /api/agent`),
+  persisting the updated session after every turn.
+- Returns the assistant's response as a Fetch.ai Agent Chat Protocol
+  (ACP) `ChatMessage` with `TextContent`, separate from the
+  `ChatAcknowledgement`.
+
+**Target users:** Travelers planning trips who want a conversational,
+context-aware planning assistant accessible through ASI:One without
+navigating a separate website.
+
 This repository is **independent** of the original GhoomAI Next.js
 project. No files are copied or modified from that repository.
+
+**Public repository:** https://github.com/kartikeysharma2645/ghoomai-agent
+
+**Agentverse profile / ASI:One shared chat URL:** Not yet available — the
+agent has not been registered on Agentverse. This placeholder will be
+updated once the agent is registered and a public ASI:One shared chat URL
+is available.
 
 ## Architecture and current status
 
@@ -14,9 +49,9 @@ project. No files are copied or modified from that repository.
 | FastAPI service with `GET /status` health endpoint | Implemented and tested |
 | GhoomAI HTTP client (`POST /api/agent`) | Implemented and tested (not yet wired to FastAPI routes) |
 | In-memory session store | Implemented and tested |
-| Fetch.ai Agent Chat Protocol integration | Implemented and tested (agent not yet registered) |
-| Agent registration on Agentverse | Not implemented |
-| ASI:One discoverability / message handling | Not implemented |
+| Fetch.ai Agent Chat Protocol integration | Implemented in code (ACP message handling + mailbox mode; agent not yet registered on Agentverse) |
+| Agent registration on Agentverse | Observed as Active / ASI Available; public profile URL pending verification |
+| ASI:One discoverability / message handling | Message handling implemented in code; public shared-chat URL pending verification |
 
 ### Current implementation
 
@@ -146,6 +181,14 @@ Expected response:
 Tests mock all network calls and do not require real API keys, live
 external services, or an internet connection.
 
+**Test-suite status:** 40 tests pass. Two pre-existing test-isolation
+failures in `tests/test_agent.py` and `tests/test_chat_protocol.py` relate
+to reloading `app.config` after removing `AGENT_SEED_PHRASE` from the
+environment (the cached `settings` singleton is not re-created). These
+are unrelated to the GhoomAI client, session store, health endpoint, or
+ACP integration. All 9 GhoomAI client tests (`tests/test_ghoomai_client.py`)
+pass, including the nested-session parsing regression tests.
+
 ## Environment variables
 
 | Variable | Example | Required for health? | Required for agent? |
@@ -164,7 +207,7 @@ excluded from Git by `.gitignore`.
 ## Current limitations
 
 - Sessions are stored in memory only and are lost on service restart.
-- No Fetch.ai agent is registered on Agentverse.
+- Agent registered on Agentverse (observed as Active / ASI Available); public profile URL pending verification.
 - The agent runs in mailbox mode but is not yet registered on Agentverse.
 - The agent runtime is not started by default; `create_agent()` requires
   `AGENT_SEED_PHRASE`.
@@ -174,4 +217,4 @@ excluded from Git by `.gitignore`.
 ## Security
 
 Never commit API keys, agent seed phrases, or other secrets. `.env` and
-`.env.*` (except `.env.example`) are excluded by `.gitignore`.
+`.env.*` (except `.env.example`) are excluded from Git by `.gitignore`.
